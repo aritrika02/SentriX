@@ -1,0 +1,257 @@
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  font-family: 'Inter', sans-serif;
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  @apply min-h-screen text-slate-100 antialiased;
+  margin: 0;
+  background:
+    radial-gradient(
+      ellipse at 85% 0%,
+      rgba(6, 182, 212, 0.09),
+      transparent 40%
+    ),
+    radial-gradient(
+      ellipse at 0% 80%,
+      rgba(30, 64, 175, 0.08),
+      transparent 45%
+    ),
+    #060d19;
+}
+
+::selection {
+  background: rgba(34, 211, 238, 0.3);
+  color: #fff;
+}
+
+/* Scrollbars */
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #08111f;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #263b50;
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #37556b;
+}
+
+/* Dashboard panels */
+
+.panel {
+  @apply rounded-2xl p-5;
+  background: linear-gradient(
+    145deg,
+    rgba(17, 30, 48, 0.97),
+    rgba(10, 20, 35, 0.97)
+  );
+  border: 1px solid rgba(100, 145, 175, 0.16);
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.14),
+    inset 0 1px 0 rgba(255, 255, 255, 0.025);
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.panel:hover {
+  border-color: rgba(34, 211, 238, 0.23);
+}
+
+/* Form inputs */
+
+input,
+select,
+textarea {
+  @apply w-full rounded-xl px-4 py-3 text-sm
+    text-slate-100 outline-none;
+  background: rgba(5, 13, 26, 0.75);
+  border: 1px solid #26374d;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  border-color: #22d3ee;
+  box-shadow: 0 0 0 3px rgba(34, 211, 238, 0.1);
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: #64748b;
+}
+
+input[type="checkbox"] {
+  accent-color: #06b6d4;
+}
+
+label {
+  @apply mb-1.5 block text-sm font-medium text-slate-300;
+}
+
+/* Primary buttons */
+
+.btn {
+  @apply inline-flex items-center justify-center gap-2
+    rounded-xl px-5 py-3 text-sm font-semibold
+    text-slate-950;
+  background: linear-gradient(135deg, #22d3ee, #0891b2);
+  box-shadow: 0 4px 16px rgba(6, 182, 212, 0.16);
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease,
+    opacity 0.2s ease;
+}
+
+.btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 22px rgba(6, 182, 212, 0.28);
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Secondary buttons */
+
+.secondary {
+  @apply inline-flex items-center justify-center gap-2
+    rounded-xl px-4 py-2.5 text-sm font-medium
+    text-slate-300;
+  background: rgba(15, 27, 44, 0.8);
+  border: 1px solid #293b50;
+  transition:
+    background 0.2s ease,
+    border-color 0.2s ease,
+    color 0.2s ease;
+}
+
+.secondary:hover:not(:disabled) {
+  background: rgba(22, 42, 62, 0.9);
+  border-color: #22d3ee;
+  color: #fff;
+}
+
+/* All buttons */
+
+button {
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: not-allowed;
+}
+
+/* Tables */
+
+table {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+thead {
+  background: rgba(6, 15, 29, 0.65);
+}
+
+th {
+  @apply text-xs font-semibold uppercase tracking-wider
+    text-slate-400;
+}
+
+td {
+  @apply text-sm text-slate-300;
+}
+
+tbody tr {
+  transition: background 0.2s ease;
+}
+
+tbody tr:hover {
+  background: rgba(34, 211, 238, 0.035);
+}
+
+/* Headings */
+
+h1,
+h2,
+h3,
+h4 {
+  letter-spacing: -0.025em;
+}
+
+h1,
+h2 {
+  color: #f8fafc;
+}
+
+/* Links */
+
+a {
+  transition: color 0.2s ease;
+}
+
+a:hover {
+  color: #22d3ee;
+}
+
+/* Keyboard accessibility */
+
+button:focus-visible,
+a:focus-visible {
+  outline: 2px solid #22d3ee;
+  outline-offset: 3px;
+}
+
+/* Mobile improvements */
+
+@media (max-width: 640px) {
+  .panel {
+    padding: 16px;
+    border-radius: 14px;
+  }
+
+  .btn,
+  .secondary {
+    min-height: 40px;
+  }
+}
+
+/* Reduced motion accessibility */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+}

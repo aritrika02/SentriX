@@ -3,6 +3,21 @@ import mongoose from 'mongoose';
 
 const schema = new mongoose.Schema(
   {
+    // ACCOUNT MODE
+accountMode: {
+  type: String,
+  enum: ['personal', 'organization'],
+  default: 'organization',
+  index: true
+},
+
+// ORGANIZATION OWNERSHIP
+organizationId: {
+  type: mongoose.Schema.Types.ObjectId,
+  ref: 'Organization',
+  default: null,
+  index: true
+},
     title: {
       type: String,
       required: true,
@@ -96,6 +111,60 @@ const schema = new mongoose.Schema(
     verifiedBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
+      default: null
+    },
+
+    // RISK CLOSURE VERIFICATION
+
+    closureRequestedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null
+    },
+
+    closureRequestedAt: {
+      type: Date,
+      default: null
+    },
+
+    closureDecision: {
+      type: String,
+      enum: [
+        'not_requested',
+        'pending',
+        'approved',
+        'rejected'
+      ],
+      default: 'not_requested'
+    },
+
+    closureRequestNote: {
+      type: String,
+      trim: true,
+      maxlength: 1000,
+      default: ''
+    },
+
+    verificationNote: {
+      type: String,
+      trim: true,
+      maxlength: 1000,
+      default: ''
+    },
+
+    closureReviewedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null
+    },
+
+    closureReviewedAt: {
+      type: Date,
+      default: null
+    },
+
+    verifiedAt: {
+      type: Date,
       default: null
     }
   },

@@ -38,7 +38,7 @@ Before registering the admin email in the web UI, run this in a third terminal (
 ```powershell
 $headers = @{ 'Content-Type' = 'application/json'; 'x-setup-key' = 'YOUR_ADMIN_SETUP_KEY' }
 $body = @{ name='Demo Admin'; email='admin@example.com'; password='ChangeThisStrongPassword123!' } | ConvertTo-Json
-Invoke-RestMethod -Uri 'http://localhost:5000/api/auth/setup-admin' -Method Post -Headers $headers -Body $body
+
 ```
 Use your actual setup key from `server/.env`. This endpoint refuses to create a second admin. For a real deployment, remove or disable this endpoint after setup and never commit secrets.
 

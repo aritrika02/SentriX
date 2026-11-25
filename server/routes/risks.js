@@ -52,16 +52,80 @@ const riskScore = risk => risk.likelihood * risk.impact;
 const accepted = risk => risk.reviewStatus !== 'pending' &&
   risk.reviewStatus !== 'rejected';
 
-const visible = user => user.role === 'admin'
-  ? {}
-  : {
+
+const visible = user => {
+
+  // PERSONAL MODE
+  if (
+    user.accountMode === 'personal' &&
+    user.role === 'personal'
+  ) {
+    return {
+      accountMode: 'personal',
+      createdBy: user._id,
+      organizationId: null
+    };
+  }
+
+  // Block accounts without a valid organization
+  if (
+    user.accountMode !== 'organization' ||
+    !user.organizationId
+  ) {
+    return {
+      _id: { $in: [] }
+    };
+  }
+
+  // ORGANIZATION ADMIN
+  if (user.role === 'admin') {
+    return {
+      accountMode: 'organization',
+      organizationId: user.organizationId
+    };
+  }
+
+  // ORGANIZATION EMPLOYEE
+  if (user.role === 'employee') {
+    return {
+      accountMode: 'organization',
+      organizationId: user.organizationId,
       $or: [
         { assignedTo: user._id },
         { createdBy: user._id }
       ]
     };
+  }
 
-async function log(riskId, userId, action, oldValue, newValue) {
+  // DENY UNKNOWN ROLES
+  return {
+    _id: { $in: [] }
+  };
+};
+
+const isPersonal = user =>
+  user.accountMode === 'personal' &&
+  user.role === 'personal';
+
+const manageRisk = (req, res, next) => {
+
+  if (isPersonal(req.user)) {
+    return next();
+  }
+
+  if (
+    req.user.accountMode === 'organization' &&
+    req.user.role === 'admin' &&
+    req.user.organizationId
+  ) {
+    return next();
+  }
+
+  return res.status(403).json({
+    message: 'Risk management access denied'
+  });
+};
+ async function log(riskId, userId, action, oldValue, newValue) {
   await AuditLog.create({
     riskId,
     performedBy: userId,
@@ -71,21 +135,44 @@ async function log(riskId, userId, action, oldValue, newValue) {
   });
 }
 
-async function assignment(id) {
-  if (!id) return null;
+async function assignment(id, user) {
 
-  if (
-    !validId(id) ||
-    !(await User.exists({ _id: id, role: 'employee' }))
-  ) {
+  // PERSONAL MODE
+  if (isPersonal(user)) {
+    return null;
+  }
+
+  // ORGANIZATION MEMBERSHIP CHECK
+  if (!user.organizationId) {
     throw Object.assign(
-      new Error('Assign an existing employee'),
-      { status: 400 }
+      new Error('Organization membership required'),
+      { status: 403 }
     );
   }
 
+  if (!id) return null;
+
+  // VERIFY EMPLOYEE BELONGS TO SAME ORGANIZATION
+  // VERIFY EMPLOYEE BELONGS TO SAME ORGANIZATION
+if (
+  !validId(id) ||
+  !(await User.exists({
+    _id: id,
+    role: 'employee',
+    accountMode: 'organization',
+    organizationId: user.organizationId,
+    membershipStatus: 'approved'
+  }))
+) {
+  throw Object.assign(
+    new Error('Assign an approved employee from your organization'),
+    { status: 400 }
+  );
+}
+
   return id;
 }
+
 
 function deadline(value) {
   if (!value) return null;
@@ -120,10 +207,22 @@ router.get('/', async (req, res, next) => {
 // EMPLOYEE REPORTS A NEW RISK
 router.post('/report', async (req, res, next) => {
   try {
-    const data = reportSchema.parse(req.body);
 
+    if (
+      req.user.accountMode !== 'organization' ||
+      req.user.role !== 'employee' ||
+      !req.user.organizationId
+    ) {
+      return res.status(403).json({
+        message: 'Organization employee access required'
+      });
+    }
+
+    const data = reportSchema.parse(req.body);
     const risk = await Risk.create({
-      title: data.title,
+  accountMode: 'organization',
+  organizationId: req.user.organizationId,
+  title: data.title,
       description: data.description,
       category: data.category,
       severity: 'medium',
@@ -153,18 +252,34 @@ router.post('/report', async (req, res, next) => {
   }
 });
 
-// ADMIN CREATES AN APPROVED RISK
-router.post('/', admin, async (req, res, next) => {
+// ADMIN OR PERSONAL USER CREATES A RISK
+router.post('/', manageRisk, async (req, res, next) => {
   try {
     const data = schema.parse(req.body);
 
-    const risk = await Risk.create({
-      ...data,
-      deadline: deadline(data.deadline),
-      assignedTo: await assignment(data.assignedTo),
-      createdBy: req.user._id,
-      reviewStatus: 'accepted'
-    });
+    
+const risk = await Risk.create({
+  ...data,
+
+  accountMode: isPersonal(req.user)
+    ? 'personal'
+    : 'organization',
+
+  organizationId: isPersonal(req.user)
+    ? null
+    : req.user.organizationId,
+
+  deadline: deadline(data.deadline),
+
+  assignedTo: await assignment(
+    data.assignedTo,
+    req.user
+  ),
+
+  createdBy: req.user._id,
+  reviewStatus: 'accepted',
+  status: 'open'
+});
 
     await log(
       risk._id,
@@ -196,7 +311,10 @@ router.patch('/:id/review', admin, async (req, res, next) => {
       decision: z.enum(['accepted', 'rejected'])
     }).strict().parse(req.body);
 
-    const risk = await Risk.findById(req.params.id);
+   const risk = await Risk.findOne({
+  _id: req.params.id,
+  ...visible(req.user)
+});
 
     if (!risk) {
       return res.status(404).json({
@@ -242,7 +360,11 @@ router.patch('/:id/claim', async (req, res, next) => {
       });
     }
 
-    if (req.user.role !== 'employee') {
+   if (
+  req.user.role !== 'employee' ||
+  req.user.accountMode !== 'organization' ||
+  !req.user.organizationId
+) {
       return res.status(403).json({
         message: 'Only employees can claim risks'
       });
@@ -253,6 +375,8 @@ router.patch('/:id/claim', async (req, res, next) => {
     const risk = await Risk.findOneAndUpdate(
       {
         _id: req.params.id,
+        accountMode: 'organization',
+        organizationId: req.user.organizationId,
         createdBy: req.user._id,
         assignedTo: null,
         reviewStatus: 'accepted',
@@ -284,8 +408,8 @@ router.patch('/:id/claim', async (req, res, next) => {
   }
 });
 
-// ADMIN UPDATES RISK DETAILS
-router.patch('/:id', admin, async (req, res, next) => {
+// ADMIN OR PERSONAL USER UPDATES RISK DETAILS
+router.patch('/:id', manageRisk, async (req, res, next) => {
   try {
     if (!validId(req.params.id)) {
       return res.status(400).json({
@@ -295,7 +419,10 @@ router.patch('/:id', admin, async (req, res, next) => {
 
     const data = schema.partial().parse(req.body);
 
-    const risk = await Risk.findById(req.params.id);
+  const risk = await Risk.findOne({
+  _id: req.params.id,
+  ...visible(req.user)
+});
 
     if (!risk) {
       return res.status(404).json({
@@ -324,7 +451,7 @@ router.patch('/:id', admin, async (req, res, next) => {
     const before = risk.toObject();
 
     if ('assignedTo' in data) {
-      data.assignedTo = await assignment(data.assignedTo);
+      data.assignedTo = await assignment(data.assignedTo, req.user);
     }
 
     if ('deadline' in data) {
@@ -357,24 +484,38 @@ router.patch('/:id/status', async (req, res, next) => {
       });
     }
 
-    const { status } = z.object({
-      status: z.enum([
-        'open',
-        'in_progress',
-        'pending_review'
-      ])
-    }).strict().parse(req.body);
+ const { status } = z.object({
+  status: z.enum([
+    'open',
+    'in_progress',
+    'pending_review',
+    'closed'
+  ])
+}).strict().parse(req.body);
+if (status === 'closed' && !isPersonal(req.user)) {
+  return res.status(403).json({
+    message: 'Organization risks require admin verification'
+  });
+}
+const risk = await Risk.findOne({
+  _id: req.params.id,
+  ...visible(req.user)
+});
 
-    const risk = await Risk.findOne({
-      _id: req.params.id,
-      ...visible(req.user)
-    });
+if (!risk) {
+  return res.status(404).json({
+    message: 'Risk not found'
+  });
+}
 
-    if (!risk) {
-      return res.status(404).json({
-        message: 'Risk not found'
-      });
-    }
+if (
+  (status === 'pending_review' || status === 'closed') &&
+  risk.controls.some(control => !control.implemented)
+) {
+  return res.status(409).json({
+    message: 'Complete all controls before closing the risk'
+  });
+}
 
     if (!accepted(risk)) {
       return res.status(409).json({
@@ -443,8 +584,10 @@ router.patch('/:id/verify', admin, async (req, res, next) => {
       });
     }
 
-    const risk = await Risk.findById(req.params.id);
-
+   const risk = await Risk.findOne({
+  _id: req.params.id,
+  ...visible(req.user)
+});
     if (!risk) {
       return res.status(404).json({
         message: 'Risk not found'
@@ -488,12 +631,13 @@ router.patch('/:id/verify', admin, async (req, res, next) => {
   }
 });
 
-// ADMIN DASHBOARD METRICS
-router.get('/summary/metrics', admin, async (req, res, next) => {
+// ADMIN AND PERSONAL DASHBOARD METRICS
+router.get('/summary/metrics', manageRisk, async (req, res, next) => {
   try {
     const risks = await Risk.find({
-      reviewStatus: { $nin: ['pending', 'rejected'] }
-    }).lean();
+  ...visible(req.user),
+  reviewStatus: { $nin: ['pending', 'rejected'] }
+}).lean();
 
     res.json({
       total: risks.length,
